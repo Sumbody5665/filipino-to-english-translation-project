@@ -31,7 +31,7 @@ sentence_pairs[0] = sentence_pairs[0].strip("\ufeff")
 sentences_to_load = -1
 #set to how many sentences you want to load
 #set to negative values if you want to load all sentences
-if words_to_load>0:
+if sentences_to_load>0:
 	print("Sentences to load: %s"%(sentences_to_load))
 else: 
 	print("Sentences to load: all of them")
@@ -51,7 +51,7 @@ for x in range(len(sentence_pairs)):
 	else:
 		show_loop_progress(x,len(sentence_pairs))
 	x = x + 1
-	if (x >= words_to_load) and (words_to_load > 0):
+	if (x >= sentences_to_load) and (sentences_to_load > 0):
 		break
 print("%s Filipino sentences and %s English sentences loaded"%(len(input),len(output)))
 
