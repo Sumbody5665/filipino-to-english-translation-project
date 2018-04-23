@@ -1,6 +1,7 @@
 from __future__ import print_function
-#from keras.models import Model
-#from keras.layers import Input, LSTM, Dense
+
+from keras.models import Model
+from keras.layers import Input, LSTM, Dense
 import numpy as np
 import io
 
@@ -124,16 +125,23 @@ encoder_input = np.zeros((len(input),input_max_word_count,word_dim),dtype="float
 target_decoder_input = np.zeros((len(output),output_max_word_count,word_dim),dtype="float32")
 target_decoder_output = np.zeros((len(output),output_max_word_count,word_dim),dtype="float32")
 #our model will also include an extra, auto-encoder output for regularization of the encoder network
-auto_decoder_input = np.zeros((len(input),input_max_word_count,word_dim),dtype="float32")
-auto_decoder_output = np.zeros((len(input),input_max_word_count,word_dim),dtype="float32")
+auto_decoder_target_input = np.zeros((len(input),input_max_word_count,word_dim),dtype="float32")
+auto_decoder_target_output = np.zeros((len(input),input_max_word_count,word_dim),dtype="float32")
 
+flip = True
+#Whether or not input should be flipped
+if flip:
+	print("Input sentences will be flipped")
 print("Encoding filipino sentences into vectors...")
 for x in range(len(input)):
 	for y in range(len(input[x])):
-		encoder_input[x][y] = filipino.get(input[x][y],filipino[oov])
-		auto_decoder_input[x][y] = filipino.get(input[x][y],filipino[oov])
+		if flip:
+			encoder_input[x][y] = filipino.get(input[x][len(input[x])-y-1],filipino[oov])
+		else:
+			encoder_input[x][y] = filipino.get(input[x][y],filipino[oov])
+		auto_decoder_target_input[x][y] = filipino.get(input[x][y],filipino[oov])
 		if y < len(input[x])-1:
-			auto_decoder_output[x][y] = filipino.get(input[x][y+1],filipino[oov])
+			auto_decoder_target_output[x][y] = filipino.get(input[x][y+1],filipino[oov])
 	show_loop_progress(x,len(input))
 
 print("Encoding english sentences into vectors...")
@@ -144,13 +152,51 @@ for x in range(len(output)):
 			target_decoder_output[x][y] = english.get(output[x][y+1],english[oov])
 	show_loop_progress(x,len(output))
 
-print("Flipping encoder input...")
-encoder_input = np.flip(encoder_input,1)
-print("Encoder input has been flipped")
 
 print("encoder input shape: %s"% (encoder_input.shape,))
 print("target decoder input shape: %s"% (target_decoder_input.shape,))
 print("target decoder output shape: %s"% (target_decoder_output.shape,))
-print("auto decoder input shape: %s"% (auto_decoder_input.shape,))
-print("auto decoder output shape: %s"% (auto_decoder_output.shape,))
+print("auto decoder input shape: %s"% (auto_decoder_target_input.shape,))
+print("auto decoder output shape: %s"% (auto_decoder_target_output.shape,))
 
+#building translator model
+batch_size = 64  # Batch size for training.
+epochs = 100  # Number of epochs to train for.
+context_dim = 512 # Latent dimensionality of the encoding space.
+
+encoder_input_layer = Input( shape = (None,word_dim) )
+encoder_first_layer = LSTM(context_dim,return_sequences=True)(encoder_input_layer)
+encoder_middle_layer = LSTM(context_dim,return_sequences=True)(encoder_first_layer)
+__, h_state, c_state = LSTM(context_dim,return_state=True)(encoder_middle_layer)
+#discard outputs and keep states
+encoder_final_state = [ h_state , c_state ]
+
+decoder_input_layer = Input( shape = (None,word_dim) )
+decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
+decoder_outputs,__,__ = decoder_first_layer(decoder_input_layer,initial_state=encoder_final_state)
+decoder_dense = Dense(word_dim,activation="softmax")
+decoder_outputs = decoder_dense(decoder_outputs)
+
+auto_decoder_input_layer = Input( shape = (None,word_dim) )
+auto_decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
+auto_decoder_outputs,__,__ = decoder_first_layer(auto_decoder_input_layer,initial_state=encoder_final_state)
+auto_decoder_dense = Dense(word_dim,activation="softmax")
+auto_decoder_outputs = decoder_dense(auto_decoder_outputs)
+
+model = Model([encoder_input_layer,decoder_input_layer,auto_decoder_input_layer],[decoder_outputs,auto_decoder_outputs])
+model.summary()
+
+model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
+
+checkpoint = ModelCheckpoint("checkpoint.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
+callback_list = [checkpoint]
+
+model.fit([encoder_input, target_decoder_input, auto_decoder_target_input], [target_decoder_output,auto_decoder_target_output],
+	batch_size=batch_size,
+	epochs=epochs,
+	validation_split=0.2,
+	callbacks=callback_list
+	)
+
+
+model.save('final.h5')
