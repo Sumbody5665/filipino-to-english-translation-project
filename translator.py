@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from keras.models import Model
 from keras.layers import Input, LSTM, Dense
+from keras.callbacks import ModelCheckpoint
 import numpy as np
 import io
 
@@ -179,9 +180,9 @@ decoder_outputs = decoder_dense(decoder_outputs)
 
 auto_decoder_input_layer = Input( shape = (None,word_dim) )
 auto_decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
-auto_decoder_outputs,__,__ = decoder_first_layer(auto_decoder_input_layer,initial_state=encoder_final_state)
+auto_decoder_outputs,__,__ = auto_decoder_first_layer(auto_decoder_input_layer,initial_state=encoder_final_state)
 auto_decoder_dense = Dense(word_dim,activation="softmax")
-auto_decoder_outputs = decoder_dense(auto_decoder_outputs)
+auto_decoder_outputs = auto_decoder_dense(auto_decoder_outputs)
 
 model = Model([encoder_input_layer,decoder_input_layer,auto_decoder_input_layer],[decoder_outputs,auto_decoder_outputs])
 model.summary()
