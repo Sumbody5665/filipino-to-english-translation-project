@@ -48,6 +48,7 @@ x=0
 for line in fin:
 	tokens = line.rstrip().split(' ')
 	english[tokens[0]] = np.array(list(map(float, tokens[1:])))
+	reverse_english[np.array(list(map(float, tokens[1:])))] = tokens[0]
 	if words_to_load > 0 :
 		show_loop_progress(x,words_to_load)
 	else:
@@ -62,13 +63,39 @@ english[oov] = 0.2*np.ones(word_dim)
 
 
 input_sentence = sos+" "+input("Enter filipino sentence to be translated to english:").strip()+" "+eos
-	input_sentence = input_sentence.replace(",", " , ")
-	input_sentence = input_sentence.replace(".", " . ")
-	input_sentence = input_sentence.replace("!", " ! ")
-	input_sentence = input_sentence.replace("?", " ? ")
-	input_sentence = input_sentence.replace("\"", " \" ")
-	input_sentence = input_sentence.lower()
+input_sentence = input_sentence.replace(",", " , ")
+input_sentence = input_sentence.replace(".", " . ")
+input_sentence = input_sentence.replace("!", " ! ")
+input_sentence = input_sentence.replace("?", " ? ")
+input_sentence = input_sentence.replace("\"", " \" ")
+input_sentence = input_sentence.lower()
 
-encoder_input = np.array(list(map(lambda x: filipino[x],input_sentence.split())))
+encoder_input = np.array(list(map(lambda x: filipino.get(x,filipino[oov]),input_sentence.split())))
 
+#building translator model
+batch_size = 64  # Batch size for training.
+epochs = 100  # Number of epochs to train for.
+context_dim = 512 # Latent dimensionality of the encoding space.
 
+encoder_input_layer = Input( shape = (None,word_dim) )
+encoder_first_layer = LSTM(context_dim,return_sequences=True)(encoder_input_layer)
+encoder_middle_layer = LSTM(context_dim,return_sequences=True)(encoder_first_layer)
+__, h_state, c_state = LSTM(context_dim,return_state=True)(encoder_middle_layer)
+#discard outputs and keep states
+encoder_final_state = [ h_state , c_state ]
+
+decoder_input_layer = Input( shape = (None,word_dim) )
+decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
+decoder_outputs,__,__ = decoder_first_layer(decoder_input_layer,initial_state=encoder_final_state)
+decoder_dense = Dense(word_dim,activation="softmax")
+decoder_outputs = decoder_dense(decoder_outputs)
+
+auto_decoder_input_layer = Input( shape = (None,word_dim) )
+auto_decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
+auto_decoder_outputs,__,__ = auto_decoder_first_layer(auto_decoder_input_layer,initial_state=encoder_final_state)
+auto_decoder_dense = Dense(word_dim,activation="softmax")
+auto_decoder_outputs = auto_decoder_dense(auto_decoder_outputs)
+
+encoder_model = Model(encoder_input_layer,encoder_final_state)
+encoder_model.summary()
+encoder_model.load_weights('samplecheckpoint.h5')
