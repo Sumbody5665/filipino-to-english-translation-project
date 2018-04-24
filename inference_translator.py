@@ -133,7 +133,7 @@ while True:
 	encoder_input = np.array(list(map(lambda x: filipino.get(x,filipino[oov]),input_sentence.split())))
 	flip = True
 	if flip:
-		encoder_input = flip(encoder_input,1)
+		encoder_input = np.flip(encoder_input,1)
 
 	understanding = encoder_model.predict(encoder_input)
 	output_vectors = np.zeros((1,1,word_dim))
