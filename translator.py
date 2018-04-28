@@ -163,7 +163,7 @@ print("auto decoder output shape: %s"% (auto_decoder_target_output.shape,))
 #building translator model
 batch_size = 64  # Batch size for training.
 epochs = 100  # Number of epochs to train for.
-context_dim = 512 # Latent dimensionality of the encoding space.
+context_dim = 2048 # Latent dimensionality of the encoding space.
 
 encoder_input_layer = Input( shape = (None,word_dim) )
 encoder_first_layer = LSTM(context_dim,return_sequences=True)(encoder_input_layer)
@@ -175,21 +175,21 @@ encoder_final_state = [ h_state , c_state ]
 decoder_input_layer = Input( shape = (None,word_dim) )
 decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
 decoder_outputs,__,__ = decoder_first_layer(decoder_input_layer,initial_state=encoder_final_state)
-decoder_dense = Dense(word_dim,activation="softmax")
+decoder_dense = Dense(word_dim,activation="linear")
 decoder_outputs = decoder_dense(decoder_outputs)
 
 auto_decoder_input_layer = Input( shape = (None,word_dim) )
 auto_decoder_first_layer = LSTM(context_dim,return_sequences=True,return_state=True)
 auto_decoder_outputs,__,__ = auto_decoder_first_layer(auto_decoder_input_layer,initial_state=encoder_final_state)
-auto_decoder_dense = Dense(word_dim,activation="softmax")
+auto_decoder_dense = Dense(word_dim,activation="linear")
 auto_decoder_outputs = auto_decoder_dense(auto_decoder_outputs)
 
 model = Model([encoder_input_layer,decoder_input_layer,auto_decoder_input_layer],[decoder_outputs,auto_decoder_outputs])
 model.summary()
 
-model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
+model.compile(optimizer='rmsprop', loss='cosine_proximity')
 
-checkpoint = ModelCheckpoint("checkpoint.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
+checkpoint = ModelCheckpoint("cos-checkpoint.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
 callback_list = [checkpoint]
 
 model.fit([encoder_input, target_decoder_input, auto_decoder_target_input], [target_decoder_output,auto_decoder_target_output],
